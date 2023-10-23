@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Redshift Query Runner Microservice Resources
+
+Resources:
+  QueryRunnerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: QueryRunnerLambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action: ecr:GetDownloadUrlForLayer
+                Resource: '*'
+
+  QueryRunnerLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: redshift_query_runner
+      Handler: function.handler
+      Role: !GetAtt QueryRunnerLambdaExecutionRole.Arn
+      Code:
+        ImageUri: !Sub <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/redshift_query_runner:latest
+      PackageType: Image
+      MemorySize: 128
+      Timeout: 10
+
+Outputs:
+  LambdaFunctionArn:
+    Description: 'ARN of the Lambda function'
+    Value: !GetAtt QueryRunnerLambdaFunction.Arn

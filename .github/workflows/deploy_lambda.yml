@@ -1,4 +1,4 @@
-name: Deploy Docker Image to Lambda
+name: Redshift Query Runner Microservice
 
 on:
   push:
@@ -13,22 +13,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2  # or your preferred region
+      
+      - name: Ensure ECR Repository Exists
+        run: |
+          REPO_NAME="redshift_query_runner"
+          REPO=$(aws ecr describe-repositories --repository-names "$REPO_NAME" || echo "not exist")
+          if [ "$REPO" = "not exist" ]; then
+            aws ecr create-repository --repository-name "$REPO_NAME"
+          fi
+      
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
       
-      - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: your_ecr_repository_name
-          IMAGE_TAG: latest
+      - name: Build, tag, and push Docker image to ECR
         run: |
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          ECR_REPOSITORY="redshift_query_runner"
+          IMAGE_TAG="latest"
+          
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
       
       - name: Deploy to AWS Lambda
-        env:
-          FUNCTION_NAME: your_lambda_function_name
         run: |
+          FUNCTION_NAME="redshift_query_runner"
           aws lambda update-function-code --function-name $FUNCTION_NAME --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
 
